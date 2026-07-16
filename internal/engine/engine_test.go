@@ -48,3 +48,11 @@ func TestSampleZeroMaxMeansAll(t *testing.T) {
 		t.Fatalf("got %d commits, want 5", len(got))
 	}
 }
+
+func TestSampleSingleFrameIsLatest(t *testing.T) {
+	c := commitsN(5)
+	got := Sample(c, 1)
+	if len(got) != 1 || got[0] != c[4] {
+		t.Fatalf("Sample(c, 1) = %v, want just the last commit", got)
+	}
+}
