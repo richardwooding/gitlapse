@@ -7,7 +7,7 @@ animating per-function [cyclomatic and cognitive complexity] so you can watch
 hotspots ignite, spread, and cool as the codebase evolves.
 
 ```
- gitlapse go-codemetrics                      frame 87/240  ▶ 8x
+ gitlapse codemetrics                         frame 87/240  ▶ 8x
  a1b2c3d  2025-03-14  Richard Wooding — Extract span queries
  files 42   functions 311   cognitive 894   max 38   mean 2.9
 
@@ -79,6 +79,6 @@ Casts play with `asciinema play repo.cast` and embed with
 pipes the cast through [agg](https://github.com/asciinema/agg)
 (`brew install agg`).
 
-[cyclomatic and cognitive complexity]: https://github.com/richardwooding/go-codemetrics
-[richardwooding/codemetrics]: https://github.com/richardwooding/go-codemetrics
+[cyclomatic and cognitive complexity]: https://github.com/richardwooding/codemetrics
+[richardwooding/codemetrics]: https://github.com/richardwooding/codemetrics
 [richardwooding/projectdetect]: https://github.com/richardwooding/projectdetect
