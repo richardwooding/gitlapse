@@ -175,6 +175,10 @@ func (b *BlobReader) Read(sha string) ([]byte, error) {
 func (b *BlobReader) Close() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.stdin.Close()
-	return b.cmd.Wait()
+	cerr := b.stdin.Close()
+	werr := b.cmd.Wait()
+	if werr != nil {
+		return werr
+	}
+	return cerr
 }

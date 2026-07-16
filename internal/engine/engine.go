@@ -90,7 +90,7 @@ func Run(ctx context.Context, root string, commits []history.Commit, opts Option
 	frames := make(chan Frame)
 	go func() {
 		defer close(frames)
-		defer blobs.Close()
+		defer func() { _ = blobs.Close() }() // frames already delivered; nothing to do with a late error
 
 		cache := map[string]fileMetrics{} // blob SHA -> parse result
 		var prev map[string]int           // "file\x00func" -> cognitive at the previous frame
