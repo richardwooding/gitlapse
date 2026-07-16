@@ -64,6 +64,21 @@ gitlapse --no-first-parent   # include merge side-branches in the timeline
 Frames compute in the background while you watch; playback pauses at the
 computed frontier and resumes as new frames arrive.
 
+## Export
+
+Render the timelapse headlessly — same UI, no terminal needed:
+
+```sh
+gitlapse --export cast --out repo.cast ~/src/somerepo   # asciinema v2 cast
+gitlapse --export gif  --out repo.gif  ~/src/somerepo   # animated GIF for READMEs
+gitlapse --export cast --fps 15 --width 120 --height 40 # pacing and canvas size
+```
+
+Casts play with `asciinema play repo.cast` and embed with
+[asciinema-player](https://docs.asciinema.org/manual/player/). GIF export
+pipes the cast through [agg](https://github.com/asciinema/agg)
+(`brew install agg`).
+
 [cyclomatic and cognitive complexity]: https://github.com/richardwooding/go-codemetrics
 [richardwooding/codemetrics]: https://github.com/richardwooding/go-codemetrics
 [richardwooding/projectdetect]: https://github.com/richardwooding/projectdetect

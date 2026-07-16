@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 	"github.com/richardwooding/gitlapse/internal/engine"
 )
 
@@ -57,6 +58,37 @@ type Model struct {
 // eventually deliver on ch.
 func New(repoName string, total int, ch <-chan engine.Frame) Model {
 	return Model{repoName: repoName, total: total, framesCh: ch, playing: true, speed: 3}
+}
+
+// RenderFrames renders every frame as the full UI at the given size, as if
+// the playhead were on it with computation complete — the offline twin of
+// live playback, used by cast/GIF export.
+func RenderFrames(repoName string, frames []engine.Frame, width, height, fps int) []string {
+	m := New(repoName, len(frames), nil)
+	m.width, m.height = width, height
+	m.frames = frames
+	m.done = true
+	// Show the nearest playback speed in the header's ▶ indicator.
+	for i, s := range speeds {
+		if s <= fps {
+			m.speed = i
+		}
+	}
+	views := make([]string, len(frames))
+	for i := range frames {
+		m.cur = i
+		views[i] = m.View()
+	}
+	return views
+}
+
+// ForceColors makes lipgloss emit truecolor ANSI (with dark-background
+// palette choices) even when stdout is not a terminal. Rendered output goes
+// into cast files, not the current terminal, so detection would wrongly
+// strip all color.
+func ForceColors() {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetHasDarkBackground(true)
 }
 
 func (m Model) Init() tea.Cmd {
