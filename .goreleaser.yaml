@@ -1,0 +1,124 @@
+# GoReleaser configuration for gitlapse.
+# Docs: https://goreleaser.com
+version: 2
+
+project_name: gitlapse
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: gitlapse
+    main: .
+    binary: gitlapse
+    env:
+      - CGO_ENABLED=0 # gotreesitter is pure Go, so grammars embed with no cgo
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: default
+    ids: [gitlapse]
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^test:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^feat(\(.+\))?!?:'
+      order: 0
+    - title: Bug fixes
+      regexp: '^fix(\(.+\))?!?:'
+      order: 1
+    - title: Others
+      order: 999
+
+# Container images built with ko (cross-compiled, no Docker/buildx needed).
+# gitlapse shells out to the git binary at runtime, so the base image must
+# ship git — alpine/git does; a distroless static base would fail on start.
+kos:
+  - id: gitlapse
+    build: gitlapse
+    repositories:
+      - ghcr.io/richardwooding/gitlapse
+    base_image: alpine/git
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    tags:
+      - "{{.Version}}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    sbom: spdx
+    bare: true
+    preserve_import_paths: false
+    labels:
+      org.opencontainers.image.source: "https://github.com/richardwooding/gitlapse"
+      org.opencontainers.image.licenses: "MIT"
+      org.opencontainers.image.description: "Replay a git repository's complexity history as a terminal timelapse"
+      org.opencontainers.image.version: "{{.Version}}"
+      org.opencontainers.image.revision: "{{.Commit}}"
+
+# Homebrew cask published to the richardwooding/homebrew-tap repository.
+homebrew_casks:
+  - name: gitlapse
+    binaries:
+      - gitlapse
+    repository:
+      owner: richardwooding
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} {{ .Tag }}"
+    homepage: "https://github.com/richardwooding/gitlapse"
+    description: "Replay a git repository's complexity history as a terminal timelapse"
+    # gitlapse is not yet signed/notarized, so strip the quarantine xattr on
+    # install to let macOS Gatekeeper run the unsigned binary.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/gitlapse"]
+          end
+    caveats: |
+      gitlapse is not yet signed/notarized with an Apple Developer ID. The cask
+      removes the quarantine attribute on install so Gatekeeper lets it run. If
+      macOS still blocks it, run:
+        sudo xattr -dr com.apple.quarantine $(brew --prefix)/bin/gitlapse
+
+release:
+  github:
+    owner: richardwooding
+    name: gitlapse
