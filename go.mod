@@ -9,7 +9,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.6
 	github.com/muesli/termenv v0.16.0
 	github.com/richardwooding/codemetrics v0.12.1
-	github.com/richardwooding/projectdetect v0.6.0
+	github.com/richardwooding/projectdetect v0.7.0
 )
 
 require (
