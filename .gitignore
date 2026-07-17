@@ -1,2 +1,4 @@
 gitlapse
 dist/
+go.work
+go.work.sum

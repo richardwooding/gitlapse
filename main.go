@@ -24,17 +24,18 @@ import (
 var version = "dev"
 
 var cli struct {
-	Path        string           `arg:"" optional:"" default:"." help:"Path inside the git repository to replay."`
-	MaxFrames   int              `default:"240" help:"Sample the timeline down to at most this many commits."`
-	Hotspots    int              `default:"15" help:"Hotspot functions tracked per frame."`
-	FirstParent bool             `default:"true" negatable:"" help:"Follow only the first parent of merges."`
-	Dump        bool             `help:"No TUI: print one TSV line of metrics per frame to stdout."`
-	Export      string           `enum:",cast,gif" default:"" help:"No TUI: export the timelapse as an asciinema cast or an animated GIF (GIF needs agg on PATH)."`
-	Out         string           `help:"Output path for --export (default gitlapse.cast / gitlapse.gif)."`
-	Fps         int              `default:"8" help:"Playback speed for --export, frames per second."`
-	Width       int              `default:"100" help:"Terminal width for --export."`
-	Height      int              `default:"30" help:"Terminal height for --export."`
-	Version     kong.VersionFlag `help:"Print the version and exit."`
+	Path             string           `arg:"" optional:"" default:"." help:"Path inside the git repository to replay."`
+	MaxFrames        int              `default:"240" help:"Sample the timeline down to at most this many commits."`
+	Hotspots         int              `default:"15" help:"Hotspot functions tracked per frame."`
+	FirstParent      bool             `default:"true" negatable:"" help:"Follow only the first parent of merges."`
+	IncludeGenerated bool             `help:"Include generated code (protobuf output, mocks, codegen files) in metrics."`
+	Dump             bool             `help:"No TUI: print one TSV line of metrics per frame to stdout."`
+	Export           string           `enum:",cast,gif" default:"" help:"No TUI: export the timelapse as an asciinema cast or an animated GIF (GIF needs agg on PATH)."`
+	Out              string           `help:"Output path for --export (default gitlapse.cast / gitlapse.gif)."`
+	Fps              int              `default:"8" help:"Playback speed for --export, frames per second."`
+	Width            int              `default:"100" help:"Terminal width for --export."`
+	Height           int              `default:"30" help:"Terminal height for --export."`
+	Version          kong.VersionFlag `help:"Print the version and exit."`
 }
 
 func main() {
@@ -65,6 +66,7 @@ func run() error {
 	opts := engine.Defaults()
 	opts.MaxFrames = cli.MaxFrames
 	opts.HotspotCount = cli.Hotspots
+	opts.IncludeGenerated = cli.IncludeGenerated
 	sampled := engine.Sample(commits, opts.MaxFrames)
 
 	frames, err := engine.Run(ctx, root, sampled, opts)

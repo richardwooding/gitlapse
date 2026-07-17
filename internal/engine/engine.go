@@ -43,9 +43,10 @@ type Frame struct {
 
 // Options tunes the engine.
 type Options struct {
-	MaxFrames    int // sample the timeline down to at most this many commits
-	HotspotCount int // hotspots kept per frame
-	MaxFileBytes int // blobs larger than this are skipped
+	MaxFrames        int  // sample the timeline down to at most this many commits
+	HotspotCount     int  // hotspots kept per frame
+	MaxFileBytes     int  // blobs larger than this are skipped
+	IncludeGenerated bool // keep protobuf/mock/codegen output in the metrics
 }
 
 // Defaults returns sensible options.
@@ -73,7 +74,7 @@ func Sample(commits []history.Commit, max int) []history.Commit {
 // fileMetrics is the cached parse result for one blob.
 type fileMetrics struct {
 	funcs []codemetrics.FunctionMetrics
-	skip  bool // unreadable, minified, or failed to parse
+	skip  bool // unreadable, minified, generated, or failed to parse
 }
 
 // Run computes frames for the sampled commits and streams them, in order, on
@@ -132,6 +133,9 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 		if projectdetect.IsVendored(e.Path) {
 			continue
 		}
+		if !opts.IncludeGenerated && projectdetect.IsGeneratedPath(e.Path) {
+			continue
+		}
 		lang := projectdetect.LanguageForPath(e.Path)
 		if lang == "" || !supported[lang] {
 			continue
@@ -155,7 +159,7 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 		go func(j job) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			fm := parseBlob(blobs, j.entry.BlobSHA, j.lang, opts.MaxFileBytes)
+			fm := parseBlob(blobs, j.entry.BlobSHA, j.lang, opts)
 			mu.Lock()
 			cache[j.entry.BlobSHA] = fm
 			mu.Unlock()
@@ -218,9 +222,10 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 	return frame, scores
 }
 
-func parseBlob(blobs *history.BlobReader, sha, lang string, maxBytes int) fileMetrics {
+func parseBlob(blobs *history.BlobReader, sha, lang string, opts Options) fileMetrics {
 	src, err := blobs.Read(sha)
-	if err != nil || (maxBytes > 0 && len(src) > maxBytes) || projectdetect.IsMinified(src) {
+	if err != nil || (opts.MaxFileBytes > 0 && len(src) > opts.MaxFileBytes) || projectdetect.IsMinified(src) ||
+		(!opts.IncludeGenerated && projectdetect.IsGeneratedContent(src, lang)) {
 		return fileMetrics{skip: true}
 	}
 	var funcs []codemetrics.FunctionMetrics
