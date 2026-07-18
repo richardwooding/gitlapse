@@ -131,7 +131,7 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 	}
 
 	jobs := collectJobs(entries, supported, opts)
-	parseUncached(jobs, blobs, cache, opts)
+	parseUncached(ctx, jobs, blobs, cache, opts)
 	all := tallyMetrics(&frame, jobs, cache)
 
 	scores := make(map[string]int, len(all))
@@ -162,14 +162,24 @@ func collectJobs(entries []history.FileEntry, supported map[string]bool, opts Op
 }
 
 // parseUncached fills the blob-SHA cache for any jobs not yet parsed,
-// fanning out across CPUs.
-func parseUncached(jobs []job, blobs *history.BlobReader, cache map[string]fileMetrics, opts Options) {
+// fanning out across CPUs. It stops scheduling new work when ctx is
+// cancelled and never parses the same blob twice within a frame.
+func parseUncached(ctx context.Context, jobs []job, blobs *history.BlobReader, cache map[string]fileMetrics, opts Options) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.NumCPU())
+	seen := make(map[string]bool, len(jobs))
 	for _, j := range jobs {
+		if ctx.Err() != nil {
+			break
+		}
+		sha := j.entry.BlobSHA
+		if seen[sha] {
+			continue
+		}
+		seen[sha] = true
 		mu.Lock()
-		_, cached := cache[j.entry.BlobSHA]
+		_, cached := cache[sha]
 		mu.Unlock()
 		if cached {
 			continue
@@ -193,8 +203,9 @@ func parseUncached(jobs []job, blobs *history.BlobReader, cache map[string]fileM
 func tallyMetrics(frame *Frame, jobs []job, cache map[string]fileMetrics) []Hotspot {
 	var all []Hotspot
 	for _, j := range jobs {
-		fm := cache[j.entry.BlobSHA]
-		if fm.skip {
+		fm, ok := cache[j.entry.BlobSHA]
+		if !ok || fm.skip {
+			// Missing entries can happen when parseUncached was cancelled.
 			continue
 		}
 		frame.Files++
@@ -232,7 +243,11 @@ func rankHotspots(all []Hotspot, prev map[string]int, n int) []Hotspot {
 		return all[a].Function < all[b].Function
 	})
 	if len(all) > n {
-		all = all[:n]
+		// Copy rather than reslice: frames are retained by the UI, and a
+		// bare all[:n] would pin the whole per-commit function array.
+		top := make([]Hotspot, n)
+		copy(top, all[:n])
+		all = top
 	}
 	for i := range all {
 		key := all[i].File + "\x00" + all[i].Function
