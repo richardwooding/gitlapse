@@ -305,7 +305,7 @@ func (m Model) hotspots(f engine.Frame) string {
 	var b strings.Builder
 	churnHdr := ""
 	if m.churn != nil {
-		churnHdr = fmt.Sprintf(" %-4s", "CHN")
+		churnHdr = " CHN "
 	}
 	b.WriteString(subtleStyle.Render(fmt.Sprintf(" %-4s %-4s%s %-6s %s", "COG", "CYC", churnHdr, "Δ", "HOTSPOT")) + "\n")
 

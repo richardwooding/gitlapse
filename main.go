@@ -97,12 +97,20 @@ func churnLookup(ctx context.Context, root string) func(string) int {
 	if err != nil || cache == nil {
 		return nil
 	}
+	// Memoized: the count is static for the run, and renders ask for the
+	// same files frame after frame. Rendering is single-goroutine, so a
+	// plain map is safe.
+	memo := make(map[string]int)
 	return func(file string) int {
-		info, ok := cache.Lookup(filepath.Join(root, file))
-		if !ok {
-			return 0
+		if c, ok := memo[file]; ok {
+			return c
 		}
-		return info.CommitCount
+		c := 0
+		if info, ok := cache.Lookup(filepath.Join(root, file)); ok {
+			c = info.CommitCount
+		}
+		memo[file] = c
+		return c
 	}
 }
 
