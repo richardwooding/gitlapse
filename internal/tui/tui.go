@@ -44,6 +44,7 @@ type Model struct {
 	repoName string
 	total    int
 	framesCh <-chan engine.Frame
+	churn    func(file string) int // HEAD-anchored commit count per file; nil hides the column
 
 	frames  []engine.Frame
 	cur     int
@@ -60,11 +61,19 @@ func New(repoName string, total int, ch <-chan engine.Frame) Model {
 	return Model{repoName: repoName, total: total, framesCh: ch, playing: true, speed: 3}
 }
 
+// WithChurn attaches a per-file commit-count lookup (HEAD-anchored, from
+// gitmeta); the hotspot table then shows a CHN column. High churn on a high-
+// complexity function is the classic refactor-priority signal.
+func (m Model) WithChurn(churn func(file string) int) Model {
+	m.churn = churn
+	return m
+}
+
 // RenderFrames renders every frame as the full UI at the given size, as if
 // the playhead were on it with computation complete — the offline twin of
-// live playback, used by cast/GIF export.
-func RenderFrames(repoName string, frames []engine.Frame, width, height, fps int) []string {
-	m := New(repoName, len(frames), nil)
+// live playback, used by cast/GIF export. churn may be nil.
+func RenderFrames(repoName string, frames []engine.Frame, width, height, fps int, churn func(string) int) []string {
+	m := New(repoName, len(frames), nil).WithChurn(churn)
 	m.width, m.height = width, height
 	m.frames = frames
 	m.done = true
@@ -294,40 +303,64 @@ func (m Model) chart(chartHeight int) string {
 
 func (m Model) hotspots(f engine.Frame) string {
 	var b strings.Builder
-	b.WriteString(subtleStyle.Render(fmt.Sprintf(" %-4s %-4s %-6s %s", "COG", "CYC", "Δ", "HOTSPOT")) + "\n")
+	churnHdr := ""
+	if m.churn != nil {
+		churnHdr = " CHN "
+	}
+	b.WriteString(subtleStyle.Render(fmt.Sprintf(" %-4s %-4s%s %-6s %s", "COG", "CYC", churnHdr, "Δ", "HOTSPOT")) + "\n")
 
 	maxRows := m.height - 16
 	if maxRows < 1 {
 		maxRows = 1
 	}
-	n := len(f.Hotspots)
-	if n > maxRows {
-		n = maxRows
-	}
+	n := min(len(f.Hotspots), maxRows)
 	for _, h := range f.Hotspots[:n] {
-		cogStyle := goodStyle
-		switch {
-		case h.Cognitive >= 15:
-			cogStyle = hotStyle
-		case h.Cognitive >= 7:
-			cogStyle = warmStyle
-		}
-		delta := ""
-		switch {
-		case h.New:
-			delta = warmStyle.Render("new")
-		case h.Delta > 0:
-			delta = hotStyle.Render(fmt.Sprintf("▲ +%d", h.Delta))
-		case h.Delta < 0:
-			delta = goodStyle.Render(fmt.Sprintf("▼ %d", h.Delta))
-		}
-		loc := fmt.Sprintf("%s  %s", h.Function, subtleStyle.Render(fmt.Sprintf("%s:%d", h.File, h.StartLine)))
-		row := fmt.Sprintf(" %s %-4d %-6s %s",
-			cogStyle.Render(fmt.Sprintf("%-4d", h.Cognitive)), h.Cyclomatic,
-			delta, loc)
-		b.WriteString(truncate(row, m.width) + "\n")
+		b.WriteString(truncate(m.hotspotRow(h), m.width) + "\n")
 	}
 	return b.String()
+}
+
+// hotspotRow renders one table line: complexity, churn (when available),
+// movement, and location.
+func (m Model) hotspotRow(h engine.Hotspot) string {
+	cogStyle := goodStyle
+	switch {
+	case h.Cognitive >= 15:
+		cogStyle = hotStyle
+	case h.Cognitive >= 7:
+		cogStyle = warmStyle
+	}
+
+	churnCol := ""
+	if m.churn != nil {
+		c := m.churn(h.File)
+		st := subtleStyle
+		switch {
+		case c >= 20:
+			st = hotStyle
+		case c >= 8:
+			st = warmStyle
+		}
+		cell := "-"
+		if c > 0 {
+			cell = fmt.Sprintf("%d", c)
+		}
+		churnCol = " " + st.Render(fmt.Sprintf("%-4s", cell))
+	}
+
+	delta := ""
+	switch {
+	case h.New:
+		delta = warmStyle.Render("new")
+	case h.Delta > 0:
+		delta = hotStyle.Render(fmt.Sprintf("▲ +%d", h.Delta))
+	case h.Delta < 0:
+		delta = goodStyle.Render(fmt.Sprintf("▼ %d", h.Delta))
+	}
+	loc := fmt.Sprintf("%s  %s", h.Function, subtleStyle.Render(fmt.Sprintf("%s:%d", h.File, h.StartLine)))
+	return fmt.Sprintf(" %s %-4d%s %-6s %s",
+		cogStyle.Render(fmt.Sprintf("%-4d", h.Cognitive)), h.Cyclomatic,
+		churnCol, delta, loc)
 }
 
 func short(sha string) string {

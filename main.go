@@ -14,6 +14,8 @@ import (
 
 	"github.com/alecthomas/kong"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/richardwooding/gitmeta"
+
 	"github.com/richardwooding/gitlapse/internal/engine"
 	"github.com/richardwooding/gitlapse/internal/export"
 	"github.com/richardwooding/gitlapse/internal/history"
@@ -62,6 +64,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	churn := churnLookup(ctx, root)
 
 	opts := engine.Defaults()
 	opts.MaxFrames = cli.MaxFrames
@@ -78,17 +81,42 @@ func run() error {
 		return dump(frames)
 	}
 	if cli.Export != "" {
-		return runExport(filepath.Base(root), frames, len(sampled))
+		return runExport(filepath.Base(root), frames, len(sampled), churn)
 	}
 
-	model := tui.New(filepath.Base(root), len(sampled), frames)
+	model := tui.New(filepath.Base(root), len(sampled), frames).WithChurn(churn)
 	_, err = tea.NewProgram(model, tea.WithAltScreen()).Run()
 	return err
 }
 
+// churnLookup builds a HEAD-anchored per-file commit-count lookup via
+// gitmeta. Best-effort: on any failure the hotspot table simply omits the
+// churn column.
+func churnLookup(ctx context.Context, root string) func(string) int {
+	cache, err := gitmeta.New(ctx, root)
+	if err != nil || cache == nil {
+		return nil
+	}
+	// Memoized: the count is static for the run, and renders ask for the
+	// same files frame after frame. Rendering is single-goroutine, so a
+	// plain map is safe.
+	memo := make(map[string]int)
+	return func(file string) int {
+		if c, ok := memo[file]; ok {
+			return c
+		}
+		c := 0
+		if info, ok := cache.Lookup(filepath.Join(root, file)); ok {
+			c = info.CommitCount
+		}
+		memo[file] = c
+		return c
+	}
+}
+
 // runExport drains the engine, renders every frame off-screen, and writes a
 // cast file — then converts it to a GIF via agg when requested.
-func runExport(repoName string, frames <-chan engine.Frame, total int) error {
+func runExport(repoName string, frames <-chan engine.Frame, total int, churn func(string) int) error {
 	tui.ForceColors()
 	var all []engine.Frame
 	for f := range frames {
@@ -97,7 +125,7 @@ func runExport(repoName string, frames <-chan engine.Frame, total int) error {
 			fmt.Fprintf(os.Stderr, "gitlapse: computed %d/%d frames\n", len(all), total)
 		}
 	}
-	views := tui.RenderFrames(repoName, all, cli.Width, cli.Height, cli.Fps)
+	views := tui.RenderFrames(repoName, all, cli.Width, cli.Height, cli.Fps, churn)
 
 	castPath := cli.Out
 	if cli.Export == "gif" {
