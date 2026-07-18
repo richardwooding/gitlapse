@@ -112,6 +112,12 @@ func Run(ctx context.Context, root string, commits []history.Commit, opts Option
 	return frames, nil
 }
 
+// job is one analyzable file in a commit's tree.
+type job struct {
+	entry history.FileEntry
+	lang  string
+}
+
 func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 	supported map[string]bool, cache map[string]fileMetrics, prev map[string]int,
 	index int, c history.Commit, opts Options) (Frame, map[string]int) {
@@ -124,10 +130,20 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 		return frame, prev
 	}
 
-	type job struct {
-		entry history.FileEntry
-		lang  string
+	jobs := collectJobs(entries, supported, opts)
+	parseUncached(ctx, jobs, blobs, cache, opts)
+	all := tallyMetrics(&frame, jobs, cache)
+
+	scores := make(map[string]int, len(all))
+	for _, h := range all {
+		scores[h.File+"\x00"+h.Function] = h.Cognitive
 	}
+	frame.Hotspots = rankHotspots(all, prev, opts.HotspotCount)
+	return frame, scores
+}
+
+// collectJobs filters a tree down to the source files worth analyzing.
+func collectJobs(entries []history.FileEntry, supported map[string]bool, opts Options) []job {
 	var jobs []job
 	for _, e := range entries {
 		if projectdetect.IsVendored(e.Path) {
@@ -142,14 +158,28 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 		}
 		jobs = append(jobs, job{entry: e, lang: lang})
 	}
+	return jobs
+}
 
-	// Parse blobs not already in the cache, in parallel.
+// parseUncached fills the blob-SHA cache for any jobs not yet parsed,
+// fanning out across CPUs. It stops scheduling new work when ctx is
+// cancelled and never parses the same blob twice within a frame.
+func parseUncached(ctx context.Context, jobs []job, blobs *history.BlobReader, cache map[string]fileMetrics, opts Options) {
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, runtime.NumCPU())
+	seen := make(map[string]bool, len(jobs))
 	for _, j := range jobs {
+		if ctx.Err() != nil {
+			break
+		}
+		sha := j.entry.BlobSHA
+		if seen[sha] {
+			continue
+		}
+		seen[sha] = true
 		mu.Lock()
-		_, cached := cache[j.entry.BlobSHA]
+		_, cached := cache[sha]
 		mu.Unlock()
 		if cached {
 			continue
@@ -166,28 +196,28 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 		}(j)
 	}
 	wg.Wait()
+}
 
-	scores := make(map[string]int, len(prev))
+// tallyMetrics folds every parsed file into the frame's aggregates and
+// returns one Hotspot per function.
+func tallyMetrics(frame *Frame, jobs []job, cache map[string]fileMetrics) []Hotspot {
 	var all []Hotspot
 	for _, j := range jobs {
-		fm := cache[j.entry.BlobSHA]
-		if fm.skip {
+		fm, ok := cache[j.entry.BlobSHA]
+		if !ok || fm.skip {
+			// Missing entries can happen when parseUncached was cancelled.
 			continue
 		}
 		frame.Files++
 		for _, f := range fm.funcs {
-			frame.Functions++
 			cog := f.Cyclomatic
 			if f.Cognitive != nil {
 				cog = *f.Cognitive
 			}
+			frame.Functions++
 			frame.TotalCog += cog
 			frame.TotalCyc += f.Cyclomatic
-			if cog > frame.MaxCog {
-				frame.MaxCog = cog
-			}
-			key := j.entry.Path + "\x00" + f.QualifiedName()
-			scores[key] = cog
+			frame.MaxCog = max(frame.MaxCog, cog)
 			all = append(all, Hotspot{
 				File:       j.entry.Path,
 				Function:   f.QualifiedName(),
@@ -197,7 +227,12 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 			})
 		}
 	}
+	return all
+}
 
+// rankHotspots sorts by cognitive complexity, keeps the top n, and marks
+// movement against the previous frame's scores.
+func rankHotspots(all []Hotspot, prev map[string]int, n int) []Hotspot {
 	sort.Slice(all, func(a, b int) bool {
 		if all[a].Cognitive != all[b].Cognitive {
 			return all[a].Cognitive > all[b].Cognitive
@@ -207,8 +242,12 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 		}
 		return all[a].Function < all[b].Function
 	})
-	if len(all) > opts.HotspotCount {
-		all = all[:opts.HotspotCount]
+	if len(all) > n {
+		// Copy rather than reslice: frames are retained by the UI, and a
+		// bare all[:n] would pin the whole per-commit function array.
+		top := make([]Hotspot, n)
+		copy(top, all[:n])
+		all = top
 	}
 	for i := range all {
 		key := all[i].File + "\x00" + all[i].Function
@@ -218,8 +257,7 @@ func computeFrame(ctx context.Context, root string, blobs *history.BlobReader,
 			all[i].New = true
 		}
 	}
-	frame.Hotspots = all
-	return frame, scores
+	return all
 }
 
 func parseBlob(blobs *history.BlobReader, sha, lang string, opts Options) fileMetrics {
