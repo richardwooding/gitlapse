@@ -57,6 +57,28 @@ func TestViewRendersFrame(t *testing.T) {
 	if strings.Contains(view, "computing first frame") {
 		t.Error("view stuck on loading state")
 	}
+	if strings.Contains(view, "CHN") {
+		t.Error("churn column shown without a churn lookup")
+	}
+}
+
+func TestChurnColumn(t *testing.T) {
+	m := modelWith(t, 3).WithChurn(func(file string) int {
+		if file == "a.go" {
+			return 42
+		}
+		return 0
+	})
+	view := m.View()
+	for _, want := range []string{"CHN", "42"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("view missing churn %q", want)
+		}
+	}
+	// b.go has zero churn: rendered as "-" placeholder
+	if !strings.Contains(view, "-") {
+		t.Error("zero-churn placeholder missing")
+	}
 }
 
 func TestPlaybackAdvancesOnTick(t *testing.T) {
