@@ -65,7 +65,7 @@ func Sample(commits []history.Commit, max int) []history.Commit {
 		return commits[n-1:] // a single frame should be the latest state
 	}
 	out := make([]history.Commit, 0, max)
-	for i := 0; i < max; i++ {
+	for i := range max {
 		out = append(out, commits[i*(n-1)/(max-1)])
 	}
 	return out

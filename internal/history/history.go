@@ -70,7 +70,7 @@ func Commits(ctx context.Context, root string, firstParent bool) ([]Commit, erro
 		return nil, err
 	}
 	var commits []Commit
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		parts := strings.SplitN(line, "\x1f", 4)
 		if len(parts) != 4 {
 			continue
@@ -99,7 +99,7 @@ func Tree(ctx context.Context, root, sha string) ([]FileEntry, error) {
 		return nil, err
 	}
 	var entries []FileEntry
-	for _, rec := range bytes.Split(out, []byte{0}) {
+	for rec := range bytes.SplitSeq(out, []byte{0}) {
 		if len(rec) == 0 {
 			continue
 		}

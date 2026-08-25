@@ -231,13 +231,7 @@ func (m Model) View() string {
 // chart renders total cognitive complexity across all computed frames as a
 // bar chart of the given height, with the playhead column highlighted.
 func (m Model) chart(chartHeight int) string {
-	cols := m.width - 2
-	if cols < 10 {
-		cols = 10
-	}
-	if cols > m.total {
-		cols = m.total
-	}
+	cols := min(max(m.width-2, 10), m.total)
 
 	// Bucket frames into columns (max value per bucket).
 	vals := make([]int, cols) // -1 = not yet computed
@@ -258,7 +252,7 @@ func (m Model) chart(chartHeight int) string {
 
 	blocks := []rune(" ▁▂▃▄▅▆▇█")
 	rows := make([]strings.Builder, chartHeight)
-	for col := 0; col < cols; col++ {
+	for col := range cols {
 		v := vals[col]
 		var cells [8]rune // one per row, bottom-up eighths
 		if v >= 0 {
@@ -266,7 +260,7 @@ func (m Model) chart(chartHeight int) string {
 			if v > 0 && eighths == 0 {
 				eighths = 1
 			}
-			for r := 0; r < chartHeight; r++ {
+			for r := range chartHeight {
 				e := eighths - r*8
 				switch {
 				case e >= 8:
@@ -278,7 +272,7 @@ func (m Model) chart(chartHeight int) string {
 				}
 			}
 		} else {
-			for r := 0; r < chartHeight; r++ {
+			for r := range chartHeight {
 				cells[r] = ' '
 			}
 		}
@@ -286,7 +280,7 @@ func (m Model) chart(chartHeight int) string {
 		if col == playCol {
 			style = playStyle
 		}
-		for r := 0; r < chartHeight; r++ {
+		for r := range chartHeight {
 			ch := string(cells[r])
 			if col == playCol && ch == " " {
 				ch = "·"
@@ -309,10 +303,7 @@ func (m Model) hotspots(f engine.Frame) string {
 	}
 	b.WriteString(subtleStyle.Render(fmt.Sprintf(" %-4s %-4s%s %-6s %s", "COG", "CYC", churnHdr, "Δ", "HOTSPOT")) + "\n")
 
-	maxRows := m.height - 16
-	if maxRows < 1 {
-		maxRows = 1
-	}
+	maxRows := max(m.height-16, 1)
 	n := min(len(f.Hotspots), maxRows)
 	for _, h := range f.Hotspots[:n] {
 		b.WriteString(truncate(m.hotspotRow(h), m.width) + "\n")
@@ -371,10 +362,7 @@ func short(sha string) string {
 }
 
 func padBetween(left, right string, width int) string {
-	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		gap = 1
-	}
+	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right), 1)
 	return left + strings.Repeat(" ", gap) + right
 }
 
