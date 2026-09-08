@@ -26,7 +26,7 @@ permissions:
   pull-requests: write
 
 env:
-  GLOAM_DIR: site   # <-- set to the folder holding gloam.css/gloam.js
+  GLOAM_DIR: docs   # <-- set to the folder holding gloam.css/gloam.js
 
 jobs:
   sync:
