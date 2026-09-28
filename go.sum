@@ -50,10 +50,10 @@ github.com/muesli/cancelreader v0.2.2 h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELU
 github.com/muesli/cancelreader v0.2.2/go.mod h1:3XuTXfFS2VjM+HTLZY9Ak0l6eUKfijIfMUZ4EgX0QYo=
 github.com/muesli/termenv v0.16.0 h1:S5AlUN9dENB57rsbnkPyfdGuWIlkmzJjbFf0Tf5FWUc=
 github.com/muesli/termenv v0.16.0/go.mod h1:ZRfOIKPFDYQoDFF4Olj7/QJbW60Ol/kL1pU3VfY/Cnk=
-github.com/odvcencio/gotreesitter v0.52.0 h1:/CpWH3r0A7BbsM0jiKVn3s0/ZrzoOYZvXC0Kd/4Meww=
-github.com/odvcencio/gotreesitter v0.52.0/go.mod h1:hBVkghd0paaYAVwd2087vfwdeU984bQbMo9LvpE0moo=
-github.com/richardwooding/codemetrics v0.13.0 h1:LsGYRytiB+JmciE6An4mH7q8pR9JqSzjqdcv+ERpAk0=
-github.com/richardwooding/codemetrics v0.13.0/go.mod h1:kIUWfdpweOrzd6cQM282KI8w7AQ+t/Wtq0eum6DQDOQ=
+github.com/odvcencio/gotreesitter v0.55.0 h1:z9sc77Z6Cabq10DuLtmQVG3NKwAxw/aqWVLS0VxAXus=
+github.com/odvcencio/gotreesitter v0.55.0/go.mod h1:hBVkghd0paaYAVwd2087vfwdeU984bQbMo9LvpE0moo=
+github.com/richardwooding/codemetrics v0.13.1 h1:btIR9oQ6BCTdfN13tsaPoKkVIDC50RXTo0YqJ39EtFc=
+github.com/richardwooding/codemetrics v0.13.1/go.mod h1:ugEDOkSVsFGsOULiJTsklDyL4wc3QYRYsmCBUuLmLqQ=
 github.com/richardwooding/gitmeta v0.2.0 h1:ZfoAw25bQ+qAoClAVCaGXa+3Ki1J1m0+zt+WauTH0Rg=
 github.com/richardwooding/gitmeta v0.2.0/go.mod h1:arft+ynVGxEeeRnQMnosIvlfsaxEAaHoBYh1U7Nq1n0=
 github.com/richardwooding/projectdetect v0.8.0 h1:QSiuxG3L1IzleGou61I45GkDTX2RaH7waZaq8a8Pz1I=
